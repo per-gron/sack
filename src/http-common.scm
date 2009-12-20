@@ -45,54 +45,54 @@
 
 ; Status codes.
 
-(define http-status-code #f)
-(let ((http-status-codes (make-table)))
-  (for-each (lambda (x)
-              (table-set! http-status-codes
-                          (car x)
-                          (cdr x)))
-            '((100 . "Continue")
-              (101 . "Switching Protocols")
-              (200 . "OK")
-              (201 . "Created")
-              (202 . "Accepted")
-              (203 . "Non-Authoritative Information")
-              (204 . "No Content")
-              (205 . "Reset Content")
-              (206 . "Partial Content")
-              (300 . "Multiple Choices")
-              (301 . "Moved Permanently")
-              (302 . "Found")
-              (303 . "See Other")
-              (304 . "Not Modified")
-              (305 . "Use Proxy")
-              (307 . "Temporary Redirect")
-              (400 . "Bad Request")
-              (401 . "Unauthorized")
-              (402 . "Payment Required")
-              (403 . "Forbidden")
-              (404 . "Not Found")
-              (405 . "Method Not Allowed")
-              (406 . "Not Acceptable")
-              (407 . "Proxy Authentication Required")
-              (408 . "Request Timeout")
-              (409 . "Conflict")
-              (410 . "Gone")
-              (411 . "Length Required")
-              (412 . "Precondition Failed")
-              (413 . "Request Entity Too Large")
-              (414 . "Request-URI Too Long")
-              (415 . "Unsupported Media Type")
-              (416 . "Requested Range Not Satisfiable")
-              (417 . "Expectation Failed")
-              (500 . "Internal Server Error")
-              (501 . "Not Implemented")
-              (502 . "Bad Gateway")
-              (503 . "Service Unavailable")
-              (504 . "Gateway Timeout")
-              (505 . "HTTP Version Not Supported")))
-  (set! http-status-code (lambda (num)
-                           (table-ref http-status-codes num))))
+(define http-status-code
+  (let ((http-status-codes (make-table)))
+    (for-each (lambda (x)
+                (table-set! http-status-codes
+                            (car x)
+                            (cdr x)))
+              '((100 . "Continue")
+                (101 . "Switching Protocols")
+                (200 . "OK")
+                (201 . "Created")
+                (202 . "Accepted")
+                (203 . "Non-Authoritative Information")
+                (204 . "No Content")
+                (205 . "Reset Content")
+                (206 . "Partial Content")
+                (300 . "Multiple Choices")
+                (301 . "Moved Permanently")
+                (302 . "Found")
+                (303 . "See Other")
+                (304 . "Not Modified")
+                (305 . "Use Proxy")
+                (307 . "Temporary Redirect")
+                (400 . "Bad Request")
+                (401 . "Unauthorized")
+                (402 . "Payment Required")
+                (403 . "Forbidden")
+                (404 . "Not Found")
+                (405 . "Method Not Allowed")
+                (406 . "Not Acceptable")
+                (407 . "Proxy Authentication Required")
+                (408 . "Request Timeout")
+                (409 . "Conflict")
+                (410 . "Gone")
+                (411 . "Length Required")
+                (412 . "Precondition Failed")
+                (413 . "Request Entity Too Large")
+                (414 . "Request-URI Too Long")
+                (415 . "Unsupported Media Type")
+                (416 . "Requested Range Not Satisfiable")
+                (417 . "Expectation Failed")
+                (500 . "Internal Server Error")
+                (501 . "Not Implemented")
+                (502 . "Bad Gateway")
+                (503 . "Service Unavailable")
+                (504 . "Gateway Timeout")
+                (505 . "HTTP Version Not Supported")))
+    (lambda (num)
+      (table-ref http-status-codes num))))
 
 
 
@@ -104,14 +104,14 @@
   id: D00E6EE6-5E55-47F2-B901-4DECBB3AA011
   constructor: make-cookie/no-check
   
-  (name read-only:)
-  value
-  expires
-  domain
-  path
-  port
-  secure
-  http-only)
+  (name read-only:);; A string. Must be a valid cookie name as defined in the spec
+  value ;; A string
+  expires ;; A date, as in SRFI 19, or #f
+  domain ;; A string or #f
+  path ;; A string or #f
+  port ;; A string or #f (?)
+  secure ;; A boolean
+  http-only) ;; A boolean
 
 (define http-separators
   (let ((lst '()))
@@ -151,31 +151,31 @@
         (http-only (cookie-http-only c)))
     (apply string-append
            `(,name
-              "="
-              ,(or value "")
-
-              ,@(if expires
-                    `("; expires=" ,(date->rfc1123 expires))
-                    '())
-              ,@(if domain
-                    `("; domain=" ,domain)
-                    '())
-              ,@(if path
-                    `("; path=" ,path)
-                    '())
-              ,@(if port
-                    `("; port="
-                      ,@(cond
-                         ((number? port)
-                          `("\"" ,(number->string port) "\""))
-                         ((pair? port)
-                          `("\""
-                            ,@(join "," (map number->string port))
-                            "\""))
-                         (else `(,port)))))
-              ,(if secure "; secure" "")
-              ,(if http-only "; HttpOnly" "")
-              "; Version=1"))))
+             "="
+             ,value
+             
+             ,@(if expires
+                   `("; expires=" ,(date->rfc1123 expires))
+                   '())
+             ,@(if domain
+                   `("; domain=" ,domain)
+                   '())
+             ,@(if path
+                   `("; path=" ,path)
+                   '())
+             ,@(if port
+                   `("; port="
+                     ,@(cond
+                        ((number? port)
+                         `("\"" ,(number->string port) "\""))
+                        ((pair? port)
+                         `("\""
+                           ,@(join "," (map number->string port))
+                           "\""))
+                        (else `(,port)))))
+             ,(if secure "; secure" "")
+             ,(if http-only "; HttpOnly" "")
+             "; Version=1"))))
 
 ;; Takes the raw Cookie: field data and splits it into a list
 ;; of key/value pairs.

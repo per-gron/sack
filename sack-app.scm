@@ -2,25 +2,20 @@
 
 (import server
         show-exceptions
+        pool-session-store
         cookie
         (std misc/exception))
 
-(define (sack-catch-errors app)
-    (lambda (env)
-      (with-exception/continuation-catcher
-       (lambda (e)
-         (values 500
-                 '(("Content-Type" . "text/plain; charset=UTF-8"))
-                 (lambda ()
-                   (display "500 Internal Server Error\n\n")
-                   (display
-                    (exception/continuation->string e))
-                   #f)))
-       (lambda ()
-         (app env)))))
+;; GET / HTTP/1.1
+;; Host: localhost
+;; Cookie: _s=8A68D921-4553-4F94-BC60-9D6624A123AD
+
+(define pool (make-session-pool))
 
 (define (sack-app env)
-  (cookie-set! "hej" "du")
+  ((env 'sack:cookie:set!) (make-cookie "hej" "du"))
+  (pp (list sess: ((env 'sack:session:get-all))))
+  ((env 'sack:session:set!) "hej" "du")
   
   (values 200
           '(("Content-Type" . "text/plain; charset=UTF-8")
@@ -36,8 +31,11 @@
   (lambda ()
     (http-server-start!
      (lambda (env)
-       ((show-exceptions-sack
-         (cookies-sack sack-app))
+       ((show-exceptions
+         (cookies
+          (pool-session-store
+           sack-app
+           pool: pool)))
         env))
      port-number: 3333))))
 

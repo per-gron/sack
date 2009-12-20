@@ -1,6 +1,6 @@
 (import (std misc/exception))
 
-(define (show-exceptions-sack app)
+(define (show-exceptions app)
   (lambda (env)
     (with-exception/continuation-catcher
      (lambda (e)

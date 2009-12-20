@@ -1,5 +1,7 @@
 (lambda (env)
   ;; The content of the request can be found in stdin
+
+  ;; Sack applications must return only once.
   
   ;; Output to stderr is considered as logging, both in this procedure
   ;; and the body producing procedure.
@@ -10,6 +12,11 @@
   ;; a sack application is called twice with the same environment
   ;; object, it should behave as if the web server had gotten two
   ;; identical requests.
+
+  ;; I'm trying to avoid any globals or dynamic environment or
+  ;; anything like that. Everything relevant to the request and the
+  ;; response should be in the environment and in the return value of
+  ;; the sack application.
   
   ;; If there is a value that isn't in the env, it is as if it was #f.
   
@@ -71,11 +78,31 @@
 
   ;; How to do them, if the environment must be immutable?
 
-  (env 'sack:cookie:get)
-  (env 'sack:cookie:set!)
-  (env 'sack:cookie:del!)
+  ;; Calling the functions to mutate the environment after the sack
+  ;; application has returned results in undefined behaviour.
 
-  (env 'sack:session:...)
+  make-cookie
+  cookie?
+  cookie-name
+  cookie-value
+  cookie-expires
+  cookie-domain
+  cookie-path
+  cookie-port
+  cookie-secure
+  cookie-http-only
+  ((env 'sack:cookie:get-all)) ;; Returns a list of the cookies,
+                               ;; including changes made by the app.
+  ((env 'sack:cookie:get) name) ;; Returns a cookie or #f
+  ((env 'sack:cookie:set!) cookie)
+
+  ((env 'sack:session:get-all)) ;; Returns an a-list of the session data
+  ((env 'sack:session:get) name)
+  ((env 'sack:session:set!) name value) ;; Name must be a string
+  ((env 'sack:session:delete!) name)
+  ((env 'sack:session:destroy!))
+  ((env 'sack:session:get-id)) ;; Possibly not there
+  ((env 'sack:session:regenerate-id!)) ;; Possibly not there
   
   (values 200
           ;; If the headers don't include a Content-Length, and not a
