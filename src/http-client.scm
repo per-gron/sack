@@ -22,6 +22,8 @@
 ;;             remote hosts (!).
 ;; 
 
+;; TODO This library contains an undefined reference to write-u8vector
+
 (import (std ds/queue
              ds/wt-tree
              string/base64

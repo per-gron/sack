@@ -23,6 +23,9 @@
 ;; get, destroy!, commit! must be thread safe if the server is multi
 ;; threaded.
 
+;; TODO Update to match the specification for get-id, regenerate-id!,
+;; destroy!, get-all
+
 (import (std misc/uuid)
         cookie
         session)

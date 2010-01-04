@@ -11,9 +11,13 @@
 ;; it. To specify more than one encoding, use several header field
 ;; definitions.
 
-;; TODO Implement maximal chunk size on chunked encoding.
+;; TODO Find a good way+api to stop a server.
 
-;; TODO Implement proper caching behaviour
+;; TODO Implement maximal chunk size on chunked encoding. [how to do that?]
+
+;; TODO Implement conditional gets
+
+;; TODO Implement partial gets
 
 (import (only: (std srfi/13)
                string-downcase!
@@ -23,7 +27,12 @@
                current-date)
         (only: (std srfi/1)
                filter)
+        (only: (std string/util)
+               string-split)
         (only: uri
+               uri-port-set!
+               uri-host-set!
+               uri-scheme-set!
                uri-path
                uri-query
                parse-uri)
@@ -42,7 +51,7 @@
   (extended-bindings)
   (block))
 
-(export http-server-start!)
+(export sack-start!)
 
 ;==============================================================================
 
@@ -79,13 +88,13 @@
 
 ; HTTP server.
 
-(define (http-server-start! sack-application
-                            #!key
-                            (port-number 80)
-                            (threaded? #t)
-                            (keep-alive-timeout 15)
-                            (keep-alive 5)
-                            (timeout 300))
+(define (sack-start! sack-application
+                     #!key
+                     (port-number 80)
+                     (threaded? #t)
+                     (keep-alive-timeout 15)
+                     (keep-alive 5)
+                     (timeout 300))
   (let ((server-port
          (open-tcp-server
           (list port-number: port-number
@@ -158,9 +167,7 @@
 ; Sack functions.
 
 (define (make-environment threaded?
-                          port-number
-                          path-info
-                          query-string
+                          uri
                           request-method
                           ;; Attributes is an alist of lowercase
                           ;; header names and their values
@@ -177,19 +184,12 @@
                             attributes))))))
     (lambda (name)
       (case name
-        ((sack:version) '(0 1))
-        ((sack:run-once) #f)
-        ((sack:multithread) threaded?)
-        ((sack:multiprocess) #f)
-        ((sack:url-scheme) 'http)
-        ((sack:server-port) port-number)
-        
-        ((sack:script-name) "")
-        ((sack:path-info) path-info)
-        ((sack:query-string) query-string)
+        ((sack:version) '(0 2))
         ((sack:request-method) request-method)
-        
         ((sack:headers) headers)
+        ((sack:root) "")
+        ((sack:uri) uri)
+        ((sack:single-thread?) (not threaded?))
         
         (else #f)))))
 
@@ -408,13 +408,23 @@
                  (internal-server-error connection)
                  #f)
                (lambda ()
+                 ;; Add some more info to the uri object. This is
+                 ;; useful for the sack environment object.
+                 (let* ((host/port (let ((ret (assoc "host" attributes)))
+                                     (and ret (cdr ret))))
+                        (host+port (string-split #\: (or host/port
+                                                         "0.0.0.0"))))
+                   (uri-port-set! uri (or (and (pair? (cdr host+port))
+                                               (string->number (cadr host+port)))
+                                          port-number))
+                   (uri-host-set! uri (car host+port))
+                   (uri-scheme-set! uri "http"))
+                 
                  (handle-sack-response
                   keep-alive
                   sack-application
                   (make-environment threaded?
-                                    port-number
-                                    (uri-path uri)
-                                    (uri-query uri)
+                                    uri
                                     method-name
                                     attributes)
                   connection
@@ -425,7 +435,7 @@
                  req
                  (+ end 1)
                  (string-length req)
-                 #t
+                 #f
                  (lambda (uri i)
                    (if (cond
                         ;; Return #t if the connection was kept alive

@@ -5,26 +5,11 @@
 
 (import (std string/util
              srfi/1
-             srfi/13
-             srfi/19)
+             srfi/13)
+        (only: (std srfi/19) date->string)
         x-www-form-urlencoded)
 
 (export http-status-code
-        make-cookie
-        cookie?
-        cookie-name
-        cookie-value
-        cookie-expires
-        cookie-domain
-        cookie-path
-        cookie-port
-        cookie-secure
-        cookie-http-only
-        cookie-to-http
-        cookie-parse-to-list
-        cookie-parse
-        cookie-headers
-        date-in-the-past
         date->rfc1123
         display-crlf
         display-header
@@ -94,153 +79,6 @@
     (lambda (num)
       (table-ref http-status-codes num))))
 
-
-
-;==============================================================================
-
-; Cookies.
-
-(define-type cookie
-  id: D00E6EE6-5E55-47F2-B901-4DECBB3AA011
-  constructor: make-cookie/no-check
-  
-  (name read-only:);; A string. Must be a valid cookie name as defined in the spec
-  value ;; A string
-  expires ;; A date, as in SRFI 19, or #f
-  domain ;; A string or #f
-  path ;; A string or #f
-  port ;; A string or #f (?)
-  secure ;; A boolean
-  http-only) ;; A boolean
-
-(define http-separators
-  (let ((lst '()))
-    (string-for-each (lambda (x)
-                       (set! lst (cons x lst)))
-                     "()<>@,;:\\\"/[]?={} \t")
-    lst))
-
-;; One optimization might be to simply not call this function
-(define (valid-cookie-name? name)
-  (call/cc
-   (lambda (ret)
-     (string-for-each
-      (lambda (chr)
-        (let ((int (char->integer chr)))
-          (if (or (<= int 31)
-                  (>= int 127)
-                  (find (lambda (x) (eq? x chr))
-                        http-separators))
-              (ret #f))))
-      name)
-     (ret #t))))
-
-(define (make-cookie name value #!key expires domain path port secure http-only)
-  (if (not (valid-cookie-name? name))
-      (error "Invalid cookie name:" name))
-  (make-cookie/no-check name value expires domain path port secure http-only))
-
-(define (cookie-to-http c)
-  (let ((name (cookie-name c))
-        (value (cookie-value c))
-        (expires (cookie-expires c))
-        (domain (cookie-domain c))
-        (path (cookie-path c))
-        (port (cookie-port c))
-        (secure (cookie-secure c))
-        (http-only (cookie-http-only c)))
-    (apply string-append
-           `(,name
-             "="
-             ,value
-             
-             ,@(if expires
-                   `("; expires=" ,(date->rfc1123 expires))
-                   '())
-             ,@(if domain
-                   `("; domain=" ,domain)
-                   '())
-             ,@(if path
-                   `("; path=" ,path)
-                   '())
-             ,@(if port
-                   `("; port="
-                     ,@(cond
-                        ((number? port)
-                         `("\"" ,(number->string port) "\""))
-                        ((pair? port)
-                         `("\""
-                           ,@(join "," (map number->string port))
-                           "\""))
-                        (else `(,port)))))
-             ,(if secure "; secure" "")
-             ,(if http-only "; HttpOnly" "")
-             "; Version=1"))))
-
-;; Takes the raw Cookie: field data and splits it into a list
-;; of key/value pairs.
-(define (cookie-parse-split data)
-  (let ((cookies (make-table)))
-    (map (lambda (s)
-           (let ((sp (string-split #\= s)))
-             (if (or (null? sp)
-                     (null? (cdr sp)))
-                 (cons "" "")
-                 (cons (urldecode (car sp))
-                       (urldecode (cadr sp))))))
-         (map string-strip (string-split #\; data)))))
-
-(define (cookie-parse-to-list data)
-  (let ((ps (cookie-parse-split data))
-        (current-cookie #f)
-        (default-prefs '()) ;; The special attributes specified before
-                            ;; any other cookie
-        (cookies '())) ;; List of processed cookies
-    (define (set-pref name val)
-      (let ((name (string-downcase name)))
-        (if current-cookie
-            (cond
-             ((equal? name "$path")
-              (cookie-path-set! current-cookie val))
-             ((equal? name "$domain")
-              (cookie-domain-set! current-cookie val))
-             ((equal? name "$port")
-              (cookie-port-set! current-cookie val)))
-            (set! default-prefs (cons (cons name val)
-                                      default-prefs)))))
-    (define (new-cookie name val)
-      (if current-cookie
-          (set! cookies (cons current-cookie cookies)))
-      (set! current-cookie (make-cookie name val))
-      (for-each (lambda (x) (set-pref (car x) (cdr x)))
-                default-prefs))
-    (for-each
-     (lambda (pair)
-       (let ((name (car pair))
-             (val (cdr pair)))
-         (if (not (= 0 (string-length name)))
-             (if (eq? #\$ (string-ref name 0))
-                 (set-pref name val)
-                 (new-cookie name val)))))
-     ps)
-    (if current-cookie
-        (cons current-cookie cookies)
-        '())))
-
-;; Parses the value of a Cookie: header and returns it as a
-;; table with the cookies, where the keys are the cookie names.
-(define (cookie-parse data)
-  (let ((tbl (make-table)))
-    (for-each (lambda (c)
-                (table-set! tbl (cookie-name c) c))
-              (cookie-parse-to-list data))
-    tbl))
-
-(define (cookie-headers tbl port)
-  (table-for-each (lambda (key val)
-                    (display-crlf port "Set-Cookie: " (cookie-to-http val)))
-                  tbl))
-
 ;==============================================================================
 
 ; Header writing functions.
@@ -250,8 +88,6 @@
                      0
                      (u8vector-length vec)
                      (or port (current-output-port))))
-
-(define date-in-the-past (make-date 0 0 0 0 1 1 1990 0))
 
 (define (date->rfc1123 d)
   (date->string d "~a, ~d ~b ~Y ~T GMT"))

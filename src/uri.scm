@@ -10,7 +10,12 @@
         (only: (std srfi/13)
                string-index-right))
 
+;; TODO Test uri-userinfo-set!, uri-host-set!, uri-port-set!
+;; TODO parse-uri can return '() as query-string when it's set not to parse it.
+;; TODO Implement non-side-effecting setters for the uri datatype
+
 (export make-uri
+        clone-uri
         uri?
         uri-scheme
         uri-scheme-set!
@@ -23,8 +28,11 @@
         uri-fragment
         uri-fragment-set!
         uri-userinfo
+        uri-userinfo-set!
         uri-host
+        uri-host-set!
         uri-port
+        uri-port-set!
         uri-query-string
         parse-uri
         parse-uri-query
@@ -34,7 +42,7 @@
         encode-for-uri
         remove-dot-segments
         uri-join
-        uri-join*)
+        uri-join-strings)
 
 (declare
   (standard-bindings)
@@ -45,6 +53,7 @@
 
 (define-type uri
   id: 62788556-c247-11d9-9598-00039301ba52
+  constructor: make-uri
 
   scheme
   authority
@@ -52,14 +61,39 @@
   query
   fragment)
 
+(define (clone-uri uri)
+  (make-uri (uri-scheme uri)
+            (uri-authority uri)
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
+
 (define (uri-userinfo uri)
-  (car (uri-authority uri)))
+  (car (or (uri-authority uri)
+           (list #f #f #f))))
+
+(define (uri-userinfo-set! uri userinfo)
+  (if (not (uri-authority uri))
+      (uri-authority-set! uri (list #f #f #f)))
+  (set-car! (uri-authority uri) userinfo))
 
 (define (uri-host uri)
-  (cadr (uri-authority uri)))
+  (cadr (or (uri-authority uri)
+            (list #f #f #f))))
+
+(define (uri-host-set! uri host)
+  (if (not (uri-authority uri))
+      (uri-authority-set! uri (list #f #f #f)))
+  (set-car! (cdr (uri-authority uri)) host))
 
 (define (uri-port uri)
-  (caddr (uri-authority uri)))
+  (caddr (or (uri-authority uri)
+             (list #f #f #f))))
+
+(define (uri-port-set! uri port)
+  (if (not (uri-authority uri))
+      (uri-authority-set! uri (list #f #f #f)))
+  (set-car! (cddr (uri-authority uri)) port))
 
 (define (uri-query-string uri)
   (let ((q (uri-query uri)))
@@ -87,8 +121,6 @@
                                  (urlencode (cdr pair))))
                        (display (urlencode (car pair)))))
                  q)))))))))
-
-;;(private)
 
 (define (hex-digit str i)
   (let ((n (char->integer (string-ref str i))))
@@ -154,8 +186,6 @@
                   (loop (+ i 1)
                         (+ j 1)))))
           result))))
-
-;;(/private)
 
 (define (parse-uri str start end decode? cont #!optional (strict #t))
   (let ((uri (make-uri #f #f "" '() #f)))
@@ -705,6 +735,6 @@
                   (uri-query base))
               (uri-fragment ref)))))
 
-(define (uri-join* base ref)
+(define (uri-join-strings base ref)
   (uri-join (string->uri base)
             (string->uri ref)))
