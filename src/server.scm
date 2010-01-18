@@ -235,14 +235,10 @@
 
 (define (handle-sack-response-write-chunked conn response-thunk)
   (let loop ()
-    (let* ((continue #f) ;; To be set later
-           (message
-            (with-output-to-u8vector
-             '(char-encoding: UTF-8
-                              eol-encoding: cr-lf)
-             (lambda ()
-               (set! continue (response-thunk)))))
-           (len (u8vector-length message)))
+    (let* ((message (response-thunk))
+           (len (if message
+                    (u8vector-length message)
+                    0)))
       ;; We must not send a chunk of zero length,
       ;; since that means the end of the response.
       (if (not (zero? len))
@@ -255,7 +251,7 @@
              conn)
             (display-crlf conn)
             (force-output conn)))
-      (if continue (loop))))
+      (if message (loop))))
   
   ;; Send the last chunk
   (display-crlf conn "0")
@@ -275,8 +271,20 @@
           (let* ((respond
                   (lambda ()
                     (let loop ()
-                      (if (eq? #t (response-thunk))
-                          (loop)))))
+                      (let ((response
+                             (response-thunk)))
+                        (cond
+                         ((not response))
+                         
+                         ((u8vector? response)
+                          (write-subu8vector response
+                                             0
+                                             (u8vector-length response))
+                          (loop))
+
+                         (else
+                          (error "Invalid response thunk return value"
+                                 response)))))))
                  
                  (chunked-encoding?
                   (and (not (has-header? headers "content-length"))

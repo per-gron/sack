@@ -6,6 +6,12 @@
         cookie
         (std misc/exception))
 
+(import "http://github.com/pereckerdal/sack/raw/master/src/server.scm"
+        "http://github.com/pereckerdal/sack/raw/master/src/show-exceptions.scm"
+        "http://github.com/pereckerdal/sack/raw/master/src/pool-session-store.scm"
+        "http://github.com/pereckerdal/sack/raw/master/src/cookie.scm"
+        (std misc/exception))
+
 (define (sack-app env)
   (pp (list sess: ((env 'sack:session:get-all))))
   ((env 'sack:session:set!) "hej" "du")
