@@ -24,6 +24,31 @@
 
 
 
+
+(define (sack-app env)
+  (error "hej"))
+
+(define app
+  (let ((pool (make-session-pool)))
+    (lambda (env)
+      ((show-exceptions
+        (cookies->
+         (pool-session-store
+          sack-app
+          pool: pool)))
+       env))))
+
+(define quit
+  (sack-start! (lambda (env) (app env))
+               port-number: 3333))
+
+
+
+
+
+
+
+
 (load "../../github-modules/build")
 
 (import server
@@ -42,13 +67,18 @@
   (pp (list sess: ((env 'sack:session:get-all))))
   ((env 'sack:session:set!) "hej" "du")
   
-  (values 200
-          '(("Content-Type" . "text/plain; charset=UTF-8"))
-          (lambda ()
-            (with-output-to-u8vector
-             (list char-encoding: 'UTF-8)
-             (lambda ()
-               (display "hej"))))))
+  (let ((ret #t))
+    (values 200
+            '(("Content-Type" . "text/plain; charset=UTF-8"))
+            (lambda ()
+              (and
+               ret
+               (begin
+                 (set! ret #f)
+                 (with-output-to-u8vector
+                  (list char-encoding: 'UTF-8)
+                  (lambda ()
+                    (display "hej")))))))))
 
 (define app
   (let ((pool (make-session-pool)))
@@ -220,3 +250,4 @@ ajax-fork
           (lambda ()
             (display "Hello, world!")
             #f)))
+

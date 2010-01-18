@@ -11,7 +11,7 @@
 ;; it. To specify more than one encoding, use several header field
 ;; definitions.
 
-;; TODO Find a good way+api to stop a server.
+;; TODO Implement pipelining
 
 ;; TODO Implement maximal chunk size on chunked encoding. [how to do that?]
 
@@ -297,7 +297,8 @@
                          ((u8vector? response)
                           (write-subu8vector response
                                              0
-                                             (u8vector-length response))
+                                             (u8vector-length response)
+                                             conn)
                           (loop))
 
                          (else
@@ -464,7 +465,7 @@
                  req
                  (+ end 1)
                  (string-length req)
-                 #f
+                 #t
                  (lambda (uri i)
                    (if (cond
                         ;; Return #t if the connection was kept alive
