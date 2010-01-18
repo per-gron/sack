@@ -30,9 +30,9 @@
         (only: (std string/util)
                string-split)
         (only: uri
-               uri-port-set!
-               uri-host-set!
-               uri-scheme-set!
+               uri-port-set
+               uri-host-set
+               uri-scheme-set
                uri-path
                uri-query
                parse-uri)
@@ -111,23 +111,41 @@
                              connection
                              threaded?
                              port-number
-                             keep-alive))))
-    (let loop ()
-      (let ((connection (read server-port)))
-        (if threaded?
-            ;; Multithreaded mode.
-            (let ((dummy-port (open-dummy)))
-              (parameterize
-               ((current-input-port dummy-port)
-                (current-output-port dummy-port))
-               (thread-start!
-                (make-thread
-                 (lambda ()
-                   (serve connection))))))
-            
-            ;; Single-threaded mode.
-            (serve connection)))
-      (loop))))
+                             keep-alive)))
+
+        ;; A mutex that is unlocked when the server should quit.
+        (quit-mutex (make-mutex)))
+    (mutex-lock! quit-mutex)
+    
+    (thread-start!
+     (make-thread
+      (lambda ()
+        (let loop ()
+          (let ((connection (read server-port)))
+            (if threaded?
+                ;; Multithreaded mode.
+                (let ((dummy-port (open-dummy)))
+                  (parameterize
+                   ((current-input-port dummy-port)
+                    (current-output-port dummy-port))
+                   (thread-start!
+                    (make-thread
+                     (lambda ()
+                       (serve connection))))))
+                
+                ;; Single-threaded mode.
+                (serve connection)))
+          
+          ;; If the mutex is not locked, it means that we should quit.
+          (if (not (mutex-lock! quit-mutex 0))
+              (loop))))))
+
+    (lambda ()
+      (if (mutex-lock! quit-mutex 0)
+          (error "Server has already quit (or is quitting)")
+          (begin
+            (mutex-unlock! quit-mutex)
+            (close-port server-port))))))
 
 ;==============================================================================
 
@@ -422,11 +440,14 @@
                                      (and ret (cdr ret))))
                         (host+port (string-split #\: (or host/port
                                                          "0.0.0.0"))))
-                   (uri-port-set! uri (or (and (pair? (cdr host+port))
-                                               (string->number (cadr host+port)))
-                                          port-number))
-                   (uri-host-set! uri (car host+port))
-                   (uri-scheme-set! uri "http"))
+                   (set! uri
+                         (uri-port-set uri
+                                       (or (and (pair? (cdr host+port))
+                                                (string->number
+                                                 (cadr host+port)))
+                                           port-number)))
+                   (set! uri (uri-host-set uri (car host+port)))
+                   (set! uri (uri-scheme-set uri "http")))
                  
                  (handle-sack-response
                   keep-alive

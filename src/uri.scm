@@ -261,7 +261,7 @@
           result))))
 
 (define (parse-uri str start end decode? cont #!optional (strict #t))
-  (let ((uri (make-uri #f #f "" '() #f)))
+  (let ((uri (make-uri #f #f #f #f "" '() #f)))
     
     (define (extract-string i j n)
       (if decode?

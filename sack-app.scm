@@ -1,3 +1,29 @@
+(import server
+        show-exceptions
+        pool-session-store
+        cookie
+        (std misc/exception))
+
+(sack-start!
+ (lambda (env)
+   (let ((ret #t))
+     (values 200
+             '(("Content-Type" . "text/plain"))
+             (lambda ()
+               (and
+                ret
+                (begin
+                  (set! ret #f)
+                  (with-output-to-u8vector
+                   (list char-encoding: 'UTF-8)
+                   (lambda ()
+                     (display "Hello, world!")))))))))
+ port-number: 3333)
+
+
+
+
+
 (load "../../github-modules/build")
 
 (import server
@@ -19,8 +45,10 @@
   (values 200
           '(("Content-Type" . "text/plain; charset=UTF-8"))
           (lambda ()
-            (display "hej")
-            #f)))
+            (with-output-to-u8vector
+             (list char-encoding: 'UTF-8)
+             (lambda ()
+               (display "hej"))))))
 
 (define app
   (let ((pool (make-session-pool)))

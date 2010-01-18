@@ -32,13 +32,6 @@
   ;; Really?
   
   ;; Behavior for output to stdout in this procedure is undefined.
-  
-  ;; The environment must be an immutable object, in the sense that if
-  ;; a sack application is called twice with the same environment
-  ;; object, it should behave as if the web server had gotten two
-  ;; identical requests.
-  ;;
-  ;; I failed to design the sack api to do the above paragraph.
 
   ;; I'm trying to avoid any global variables or dynamic environment or
   ;; anything like that. Everything relevant to the request and the
