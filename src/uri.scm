@@ -10,29 +10,25 @@
         (only: (std srfi/13)
                string-index-right))
 
-;; TODO Test uri-userinfo-set!, uri-host-set!, uri-port-set!
 ;; TODO parse-uri can return '() as query-string when it's set not to parse it.
-;; TODO Implement non-side-effecting setters for the uri datatype
 
 (export make-uri
         clone-uri
         uri?
         uri-scheme
-        uri-scheme-set!
-        uri-authority
-        uri-authority-set!
-        uri-path
-        uri-path-set!
-        uri-query
-        uri-query-set!
-        uri-fragment
-        uri-fragment-set!
+        uri-scheme-set
         uri-userinfo
-        uri-userinfo-set!
+        uri-userinfo-set
         uri-host
-        uri-host-set!
+        uri-host-set
         uri-port
-        uri-port-set!
+        uri-port-set
+        uri-path
+        uri-path-set
+        uri-query
+        uri-query-set
+        uri-fragment
+        uri-fragment-set
         uri-query-string
         parse-uri
         parse-uri-query
@@ -53,47 +49,124 @@
 
 (define-type uri
   id: 62788556-c247-11d9-9598-00039301ba52
-  constructor: make-uri
+  constructor: make-uri/internal
 
   scheme
-  authority
+  userinfo
+  host
+  port
   path
   query
   fragment)
 
+(define (make-uri scheme userinfo host port path query fragment)
+  (if (not
+       (and (or (not scheme)
+                (string? scheme))
+            (or (not userinfo)
+                (string? userinfo))
+            (or (not host)
+                (string? host))
+            (or (not port)
+                (integer? port))
+            (or (not path)
+                (string? path))
+            (or (not query)
+                (string? query) ;; I'm not sure that query should be
+                                ;; allowed to be a string.
+                (null? query)
+                (pair? query))
+            (or (not fragment)
+                (string? fragment))))
+      (error "Invalid argument"))
+  
+  (make-uri/internal scheme
+                     userinfo
+                     host
+                     port
+                     path
+                     query
+                     fragment))
+
 (define (clone-uri uri)
   (make-uri (uri-scheme uri)
-            (uri-authority uri)
+            (uri-userinfo uri)
+            (uri-host uri)
+            (uri-port uri)
             (uri-path uri)
             (uri-query uri)
             (uri-fragment uri)))
 
-(define (uri-userinfo uri)
-  (car (or (uri-authority uri)
-           (list #f #f #f))))
+(define (uri-scheme-set uri scheme)
+  (make-uri scheme
+            (uri-userinfo uri)
+            (uri-host uri)
+            (uri-port uri)
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
 
-(define (uri-userinfo-set! uri userinfo)
-  (if (not (uri-authority uri))
-      (uri-authority-set! uri (list #f #f #f)))
-  (set-car! (uri-authority uri) userinfo))
+(define (uri-userinfo-set uri userinfo)
+  (make-uri (uri-scheme uri)
+            userinfo
+            (uri-host uri)
+            (uri-port uri)
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
 
-(define (uri-host uri)
-  (cadr (or (uri-authority uri)
-            (list #f #f #f))))
+(define (uri-host-set uri host)
+  (make-uri (uri-scheme uri)
+            (uri-userinfo uri)
+            host
+            (uri-port uri)
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
 
-(define (uri-host-set! uri host)
-  (if (not (uri-authority uri))
-      (uri-authority-set! uri (list #f #f #f)))
-  (set-car! (cdr (uri-authority uri)) host))
+(define (uri-port-set uri port)
+  (make-uri (uri-scheme uri)
+            (uri-userinfo uri)
+            (uri-host uri)
+            port
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
 
-(define (uri-port uri)
-  (caddr (or (uri-authority uri)
-             (list #f #f #f))))
+(define (uri-path-set uri path)
+  (make-uri (uri-scheme uri)
+            (uri-userinfo uri)
+            (uri-host uri)
+            (uri-port uri)
+            path
+            (uri-query uri)
+            (uri-fragment uri)))
 
-(define (uri-port-set! uri port)
-  (if (not (uri-authority uri))
-      (uri-authority-set! uri (list #f #f #f)))
-  (set-car! (cddr (uri-authority uri)) port))
+(define (uri-query-set uri query)
+  (make-uri (uri-scheme uri)
+            (uri-userinfo uri)
+            (uri-host uri)
+            (uri-port uri)
+            (uri-path uri)
+            query
+            (uri-fragment uri)))
+
+(define (uri-fragment-set uri fragment)
+  (make-uri (uri-scheme uri)
+            (uri-userinfo uri)
+            (uri-host uri)
+            (uri-port uri)
+            (uri-path uri)
+            (uri-query uri)
+            fragment))
+
+;; This is an internal utility method
+(define (uri-authority-set! uri authority)
+  (uri-userinfo-set! (and authority (car authority)))
+  (uri-host-set! (and authority (cadr authority)))
+  (uri-port-set! (and authority (caddr authority))))
+
+
 
 (define (uri-query-string uri)
   (let ((q (uri-query uri)))
@@ -684,14 +757,18 @@
   (cond
    ((uri-scheme ref)
     (make-uri (uri-scheme ref)
-              (uri-authority ref)
+              (uri-userinfo ref)
+              (uri-host ref)
+              (uri-port ref)
               (remove-dot-segments (uri-path ref))
               (uri-query ref)
               (uri-fragment ref)))
 
    ((uri-authority ref)
     (make-uri (uri-scheme base)
-              (uri-authority ref)
+              (uri-userinfo ref)
+              (uri-host ref)
+              (uri-port ref)
               (remove-dot-segments (uri-path ref))
               (uri-query ref)
               (uri-fragment ref)))
@@ -699,7 +776,9 @@
    ((let ((path (uri-path ref)))
       (and path (positive? (string-length path))))
     (make-uri (uri-scheme base)
-              (uri-authority base)
+              (uri-userinfo ref)
+              (uri-host ref)
+              (uri-port ref)
               (let ((path (uri-path ref))
                     (base-path (uri-path base)))
                 (cond
@@ -729,7 +808,9 @@
 
    (else
     (make-uri (uri-scheme base)
-              (uri-authority base)
+              (uri-userinfo ref)
+              (uri-host ref)
+              (uri-port ref)
               (uri-path base)
               (or (uri-query ref)
                   (uri-query base))
