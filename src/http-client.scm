@@ -299,6 +299,8 @@
             (cons '() #f))
 
            ((port? query)
+            ;; TODO I'm not sure that this adds the header in the
+            ;; right place. Shouldn't it be added to the end?
             (cons '((transfer-encoding . chunked))
                   query))
 
@@ -334,6 +336,7 @@
            (else
             (error "Invalid query parameter type" query))))
 
+         ;; TODO Why is this here? This really doesn't belong here.
          (actual-headers
           (header-join
            headers
@@ -488,7 +491,7 @@
 ;; are guaranteed to be called from the same thread, done-callback
 ;; after part-callback.
 ;;
-;; part-callback should be a procedure taking three arguments:
+;; port-callback should be a procedure taking three arguments:
 ;; * code, the numerical response code of the http request,
 ;; * headers, an alist where the car is a lowercase string of
 ;;   the header and cdr is a string of the value (not case-modified)
@@ -593,10 +596,9 @@
   (request-queue-with-mutex!
    (lambda ()
      (let* ((stripped-uri (make-uri (uri-scheme uri)
-                                    ;; Skip the userinfo part of the
-                                    ;; authority
-                                    (cons #f
-                                          (cdr (uri-authority uri)))
+                                    #f ;; Skip the userinfo
+                                    (uri-host uri)
+                                    (uri-port uri)
                                     #f
                                     #f
                                     #f))

@@ -29,6 +29,8 @@
         uri-query-set
         uri-fragment
         uri-fragment-set
+        uri-authority
+        uri-authority-set
         uri-query-string
         parse-uri
         parse-uri-query
@@ -166,6 +168,20 @@
   (uri-host-set! (and authority (cadr authority)))
   (uri-port-set! (and authority (caddr authority))))
 
+(define (uri-authority uri)
+  (and (uri-host uri)
+       (list (uri-userinfo uri)
+             (uri-host uri)
+             (uri-port uri))))
+
+(define (uri-authority-set uri authority)
+  (make-uri (uri-scheme uri)
+            (and authority (car authority))
+            (and authority (cadr authority))
+            (and authority (caddr authority))
+            (uri-path uri)
+            (uri-query uri)
+            (uri-fragment uri)))
 
 
 (define (uri-query-string uri)
