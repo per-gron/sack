@@ -164,9 +164,9 @@
 
 ;; This is an internal utility method
 (define (uri-authority-set! uri authority)
-  (uri-userinfo-set! (and authority (car authority)))
-  (uri-host-set! (and authority (cadr authority)))
-  (uri-port-set! (and authority (caddr authority))))
+  (uri-userinfo-set! uri (and authority (car authority)))
+  (uri-host-set! uri (and authority (cadr authority)))
+  (uri-port-set! uri (and authority (caddr authority))))
 
 (define (uri-authority uri)
   (and (uri-host uri)
