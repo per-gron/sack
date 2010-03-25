@@ -422,17 +422,22 @@
 
 (define (read-status-line-code str)
   (let* ((len (string-length str))
-		 (hit-space #f)
+         (hit-space #f)
          (start
           (let loop ((start 0))
-			(if (char=? (string-ref str start) #\space)
-				(set! hit-space #t)
-				#f)
-            (if (and (< start len)
-					 hit-space
-                     (not (char-numeric? (string-ref str start))))
-                (loop (+ 1 start))
-                start))))
+            (if (char=? (string-ref str start) #\space)
+                (set! hit-space #t)
+                #f)
+            (cond
+             ((and hit-space
+                   (char-numeric? (string-ref str start)))
+              start)
+             
+             ((< start len)
+              (loop (+ 1 start)))
+
+             (else
+              start)))))
     (string->number
      (substring str start (min (+ start 3) len)))))
 
