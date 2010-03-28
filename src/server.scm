@@ -151,10 +151,15 @@
 
 ; Error functions.
 
+;; Note that str must be US-ASCII. Otherwise Content-Length will be wrong.
 (define (show-error code str connection)
   (display-crlf connection "HTTP/1.1 " code " " (http-status-code code))
   (display-header connection
+                  ;; This only works with us-ascii strings, otherwise
+                  ;; some kind of u8vector-length must be used.
                   `("Content-Length" . ,(string-length str)))
+  (display-header connection
+                  `("Content-Type" . "text/html; char-encoding=UTF-8"))
   (display-crlf connection)
   (display str connection)
   (close-port connection))
