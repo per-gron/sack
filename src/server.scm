@@ -94,6 +94,7 @@
                      (threaded? #t)
                      (keep-alive-timeout 15)
                      (keep-alive 5)
+                     thread-name
                      (timeout 300))
   (let ((server-port
          (open-tcp-server
@@ -116,29 +117,32 @@
         ;; A mutex that is unlocked when the server should quit.
         (quit-mutex (make-mutex)))
     (mutex-lock! quit-mutex)
-    
-    (thread-start!
-     (make-thread
-      (lambda ()
-        (let loop ()
-          (let ((connection (read server-port)))
-            (if threaded?
-                ;; Multithreaded mode.
-                (let ((dummy-port (open-dummy)))
-                  (parameterize
-                   ((current-input-port dummy-port)
-                    (current-output-port dummy-port))
-                   (thread-start!
-                    (make-thread
-                     (lambda ()
-                       (serve connection))))))
-                
-                ;; Single-threaded mode.
-                (serve connection)))
-          
-          ;; If the mutex is not locked, it means that we should quit.
-          (if (not (mutex-lock! quit-mutex 0))
-              (loop))))))
+
+    (let ((thread-proc
+           (lambda ()
+             (let loop ()
+               (let ((connection (read server-port)))
+                 (if threaded?
+                     ;; Multithreaded mode.
+                     (let ((dummy-port (open-dummy)))
+                       (parameterize
+                           ((current-input-port dummy-port)
+                            (current-output-port dummy-port))
+                         (thread-start!
+                          (make-thread
+                           (lambda ()
+                             (serve connection))))))
+                     
+                     ;; Single-threaded mode.
+                     (serve connection)))
+               
+               ;; If the mutex is not locked, it means that we should quit.
+               (if (not (mutex-lock! quit-mutex 0))
+                   (loop))))))
+      (thread-start!
+       (if thread-name
+           (make-thread thread-proc thread-name)
+           (make-thread thread-proc))))
 
     (lambda ()
       (if (mutex-lock! quit-mutex 0)
