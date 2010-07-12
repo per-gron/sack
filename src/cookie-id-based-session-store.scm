@@ -26,7 +26,7 @@
 ;; TODO Update to match the specification for get-id, regenerate-id!,
 ;; destroy!, get-all
 
-(import (std misc/uuid)
+(import (std misc/uuid) ;; FIXME
         cookie
         session)
 

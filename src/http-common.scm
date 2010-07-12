@@ -3,10 +3,10 @@
 ;;; Copyright (c) 2008-2009 Per Eckerdal, 2005-2007 Marc Feeley, All
 ;;; Rights Reserved.
 
-(import (std string/util
-             srfi/1
-             srfi/13)
-        (only: (std srfi/19) date->string)
+(import (std string/util) ;; FIXME
+        (srfi lists
+              strings)
+        (only: (srfi time) date->string)
         x-www-form-urlencoded)
 
 (export http-status-code

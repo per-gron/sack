@@ -24,14 +24,14 @@
 
 ;; TODO This library contains an undefined reference to write-u8vector
 
-(import (std ds/queue
+(import (std ds/queue ;; FIXME
              ds/wt-tree
              string/base64
              string/util
-             srfi/1
-             srfi/13
-             srfi/19
              misc/u8v)
+        (srfi lists
+              strings
+              time)
         http-common
         uri
         x-www-form-urlencoded)

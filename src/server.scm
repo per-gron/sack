@@ -19,15 +19,15 @@
 
 ;; TODO Implement partial gets
 
-(import (only: (std srfi/13)
+(import (only: (srfi strings)
                string-downcase!
                string-downcase
                reverse-list->string)
-        (only: (std srfi/19)
+        (only: (srfi time)
                current-date)
-        (only: (std srfi/1)
+        (only: (srfi lists)
                filter)
-        (only: (std string/util)
+        (only: (std string/util) ;; FIXME
                string-split)
         (only: uri
                uri-port-set
@@ -44,7 +44,7 @@
                http-status-code
                permissive-read-line
                read-header)
-        (std misc/token-table))
+        token-table)
 
 (declare
   (standard-bindings)

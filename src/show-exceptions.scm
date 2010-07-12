@@ -1,4 +1,4 @@
-(import (std misc/exception))
+(import (std misc/exception)) ;; FIXME
 
 (define (simple-sack-response thunk)
   (let ((ret #t))
