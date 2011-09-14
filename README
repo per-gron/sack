@@ -1,3 +1,7 @@
+Find below the calling and use convention for the Sack HTTP middleware.
+For a usage example, see sack-app.scm .
+For how to use http-client, see its sourcecode in src/http-client.scm .
+
 (define-type cookie
   id: D00E6EE6-5E55-47F2-B901-4DECBB3AA011
   
