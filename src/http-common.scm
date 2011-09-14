@@ -3,10 +3,10 @@
 ;;; Copyright (c) 2008-2009 Per Eckerdal, 2005-2007 Marc Feeley, All
 ;;; Rights Reserved.
 
-(import (std string/util) ;; FIXME
-        (srfi lists
-              strings)
-        (only: (srfi time) date->string)
+(import (std string/util
+             srfi/1
+             srfi/13)
+        (only: (std srfi/19) date->string)
         x-www-form-urlencoded)
 
 (export http-status-code
@@ -19,7 +19,8 @@
         permissive-read-line
         permissive-read-lines
         read-header
-        read-content-chars)
+        read-content-chars
+        chunked-coding-read-hex)
 
 (declare (block)
          (mostly-fixnum)
@@ -238,3 +239,47 @@
                 str
                 "")))
         "")))
+
+(define (chunked-coding-read-hex str)
+  (let* ((str-len (string-length str))
+         (chr-lst
+          (let loop ((lst '()) (idx 0))
+            (cond
+             ((or (>= idx str-len)
+                  (let ((chr (string-ref str idx)))
+                    (or (char=? #\; chr)
+                        (char=? #\space chr))))
+              lst)
+
+             (else
+              (loop (cons (char->integer
+                           (string-ref str idx))
+                          lst)
+                    (+ 1 idx))))))
+         (zero (char->integer #\0))
+         (nine (char->integer #\9))
+         (a (char->integer #\a))
+         (A (char->integer #\A))
+         (f (char->integer #\f))
+         (F (char->integer #\F)))
+    (let loop ((lst chr-lst) (multiple 1))
+      (if (null? lst)
+          0
+          (let ((chr (car lst)))
+            (+ (loop (cdr lst) (* multiple 16))
+               (* multiple
+                  (cond
+                   ((and (>= chr zero)
+                         (<= chr nine))
+                    (- chr zero))
+
+                   ((and (>= chr a)
+                         (<= chr f))
+                    (+ 10 (- chr a)))
+
+                   ((and (>= chr A)
+                         (<= chr F))
+                    (+ 10 (- chr A)))
+
+                   (else
+                    (error "Invalid character in hex string" str))))))))))

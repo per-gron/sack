@@ -1,6 +1,8 @@
 ;; ===================================================================
 ;;
-;;   Another http (1.1) client library, by Per Eckerdal
+;;   Another http (1.1) client library
+;;   Per Eckerdal and Mikael More
+;;   MIT non-academic license
 ;;
 ;; Things it supports:
 ;; * Reading chunked encoding
@@ -20,18 +22,27 @@
 ;; 2008-09-23: Removed close-output-port call between sending headers
 ;;             and reading response, showed up not to work for certain
 ;;             remote hosts (!).
+;; 2011-04-07: Set timeouts on the tcp ports, so if we reach a dead server
+;;             or a connection dies by any reason, the http request will
+;;             eventually fail.
+;; 2011-09-12: Made so queries to URL:s with no path work i.e. (http-get-url
+;;             "http://127.0.0.1"), a "/" is not put in place into such
+;;             HTTP requests. 
 ;; 
 
 ;; TODO This library contains an undefined reference to write-u8vector
 
-(import (std ds/queue ;; FIXME
+(import (std ds/queue
              ds/wt-tree
              string/base64
              string/util
-             misc/u8v)
-        (srfi lists
-              strings
-              time)
+             srfi/1
+             srfi/13
+             srfi/19
+             misc/u8v
+             ; misc/exception
+             )
+        ; (only: (std string/util) apply-dumps)
         http-common
         uri
         x-www-form-urlencoded)
@@ -70,9 +81,16 @@
         http-client-error-from-remote-request-headers
         http-client-error-from-remote-uri
         http-client-error-from-remote-content
+
         http-access-url
         http-get-url
         http-post-url
+
+        http-access-url/unfallible:on-first-failure-callback
+        http-access-url/unfallible
+        http-get-url/unfallible
+        http-post-url/unfallible
+
         http-client-404-exception?
         http-response-get-status
         http-response-get-headers
@@ -95,17 +113,21 @@
 (define http-max-connection-idle-time #f) ;; In seconds
 (define http-max-connections-per-server #f)
 (define http-preferred-pipelined-connections #f) ;; Not implemented
+(define http-max-connection-wait-for-data #f)
 
 (set! http-max-pipelined-requests-per-connection 2)
 (set! http-max-connection-idle-time 30)
 (set! http-max-connections-per-server 200)
 (set! http-preferred-pipelined-connections 2) ;; Not implemented
+(set! http-max-connection-wait-for-data (* 5 60))
 
 ;; ===================================================================
 ;;
 ;; Utility functions
 ;;
-
+;; 
+;(define (dbg . a) (print (apply-dumps a) "\n")) ; For debugging library
+(define-macro (dbg . a) '#!void)
 
 (define (al-get lst key #!optional (dfl #f))
   (let ((pair (assoc key lst)))
@@ -122,39 +144,6 @@
        thunk
        (lambda ()
          (mutex-unlock! mtx))))))
-
-;; TODO This functionality overlaps with lib/uri. lib/uri should
-;; really be used instead.
-(define (uri-query-string uri)
-  (with-output-to-string
-   (string)
-   (lambda ()
-     (display (let ((p (uri-path uri)))
-                (if (zero? (string-length p))
-                    "/"
-                    p)))
-
-     (let ((q (uri-query uri)))
-       (cond
-        ((string? q)
-         (display "?")
-         (display q))
-
-        ((pair? q)
-         (let ((first #t))
-           (for-each
-            (lambda (pair)
-              (display (if first
-                           "?"
-                           "&"))
-              (set! first #f)
-              (if (cdr pair)
-                  (display (list
-                            (urlencode (car pair))
-                            "="
-                            (urlencode (cdr pair))))
-                  (display (urlencode (car pair)))))
-            q))))))))
 
 (define (pipe/buffer in-port out-port #!optional chars-left buf)
   (let* ((buf (or buf (make-u8vector (* 5 1024))))
@@ -229,54 +218,13 @@
            (list server-address: server-address
                  port-number: port-number))))
     
+    (input-port-timeout-set! port http-max-connection-wait-for-data)
+    (output-port-timeout-set! port http-max-connection-wait-for-data)
+    
     (let ((res (thunk port)))
       (if close-on-exit
           (close-port port))
       res)))
-
-(define (chunked-coding-read-hex str)
-  (let* ((str-len (string-length str))
-         (chr-lst
-          (let loop ((lst '()) (idx 0))
-            (cond
-             ((or (>= idx str-len)
-                  (let ((chr (string-ref str idx)))
-                    (or (char=? #\; chr)
-                        (char=? #\space chr))))
-              lst)
-
-             (else
-              (loop (cons (char->integer
-                           (string-ref str idx))
-                          lst)
-                    (+ 1 idx))))))
-         (zero (char->integer #\0))
-         (nine (char->integer #\9))
-         (a (char->integer #\a))
-         (A (char->integer #\A))
-         (f (char->integer #\f))
-         (F (char->integer #\F)))
-    (let loop ((lst chr-lst) (multiple 1))
-      (if (null? lst)
-          0
-          (let ((chr (car lst)))
-            (+ (loop (cdr lst) (* multiple 16))
-               (* multiple
-                  (cond
-                   ((and (>= chr zero)
-                         (<= chr nine))
-                    (- chr zero))
-
-                   ((and (>= chr a)
-                         (<= chr f))
-                    (+ 10 (- chr a)))
-
-                   ((and (>= chr A)
-                         (<= chr F))
-                    (+ 10 (- chr A)))
-
-                   (else
-                    (error "Invalid character in hex string" str))))))))))
 
 
 ;; ===================================================================
@@ -286,9 +234,10 @@
 
 ;; Bah.. This function is quite ugly.
 (define (display-request port method uri headers query)
+  ; (set! port (current-output-port)) ; Debug option to get output to stdoutx
   (display (string-upcase (symbol->string method)) port)
   (display " " port)
-  (display (uri-query-string uri) port)
+  (display (uri-path&query->string uri) port)
   (display-crlf port " HTTP/1.1")
 
   (let* ((ct (al-get headers 'content-type))
@@ -299,8 +248,6 @@
             (cons '() #f))
 
            ((port? query)
-            ;; TODO I'm not sure that this adds the header in the
-            ;; right place. Shouldn't it be added to the end?
             (cons '((transfer-encoding . chunked))
                   query))
 
@@ -336,16 +283,15 @@
            (else
             (error "Invalid query parameter type" query))))
 
-         ;; TODO Why is this here? This really doesn't belong here.
          (actual-headers
           (header-join
            headers
            `((host . ,(uri-host uri))
              (user-agent . "curl/7.18.2 (i486-pc-linux-gnu) libcurl/7.18.2")
-             (cache-control . "max-age=0")
+             ;(cache-control . "max-age=0")
              (accept-charset . "utf-8;q=0.7,ISO-8859-1;q=0.6,*;q=0.5")
-             (accept . "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5")
-             (accept-encoding . "")
+             ;(accept . "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5")
+             (accept-encoding . "identity") ; identity means send it uncompressed etc.
              (accept-language . "en")
              (pragma . "no-cache")
              (cache-control . "no-cache")
@@ -496,7 +442,7 @@
 ;; are guaranteed to be called from the same thread, done-callback
 ;; after part-callback.
 ;;
-;; port-callback should be a procedure taking three arguments:
+;; part-callback should be a procedure taking three arguments:
 ;; * code, the numerical response code of the http request,
 ;; * headers, an alist where the car is a lowercase string of
 ;;   the header and cdr is a string of the value (not case-modified)
@@ -576,6 +522,7 @@
 
 ;; Don't use persistent connections.
 (define (http-invoke-request req)
+  (dbg "(http-invoke-request) starts thread")
   (thread-start!
    (make-thread
     (lambda ()
@@ -589,7 +536,8 @@
                                        '((connection . close)))
                           (http-request-query req))
          (read-response port req)
-         ((http-request-done-callback req))))))))
+         ((http-request-done-callback req)))))
+    '(http-client worker-thread non-persistent-connection))))
 
 
 ;;; Functions regarding the request queue:
@@ -601,9 +549,12 @@
   (request-queue-with-mutex!
    (lambda ()
      (let* ((stripped-uri (make-uri (uri-scheme uri)
-                                    #f ;; Skip the userinfo
+                                    ;; Skip the userinfo part of the
+                                    ;; authority
+                                    #f
                                     (uri-host uri)
-                                    (uri-port uri)
+                                    (uri-port uri) ; uh?:..(cons #f
+                                         ;  (cdr (uri-authority uri)))
                                     #f
                                     #f
                                     #f))
@@ -687,7 +638,7 @@
 ;; Creates a new connection thread belonging to a http-connections
 ;; structure.
 ;;
-;; Note that this function does not lockt the http-connections
+;; Note that this function does not lock the http-connections
 ;; mutex. The user of the function must do that.
 (define (http-connections-push-connection conns)
   (let* ((uid (http-connections-counter conns))
@@ -729,6 +680,9 @@
    conns
    (lambda ()
      (let ((threads (http-connections-threads conns)))
+       (dbg "(http-connections-push-request) pushes request. thread list empty = "
+            (wt-tree/empty? threads) " request = " request
+            " conns=" conns " threads=" (wt-tree->alist threads))
        (if (wt-tree/empty? threads)
            (http-connection-push-request
             (cdr (http-connections-push-connection conns))
@@ -741,6 +695,7 @@
                                http-max-connections-per-server))
                        (http-connections-push-connection conns)
                        min-pair)))
+             (dbg "(http-connections-push-request) min-pair=" min-pair ", pair=" pair)
              (wt-tree/delete! threads (car pair))
              (wt-tree/add! threads
                            (cons (+ 1 (caar pair))
@@ -787,6 +742,7 @@
        (thread-start!
         (make-thread
          (lambda ()
+           (dbg "Thread of (http-connection-open) started.")
            (let* ((sender (current-thread))
                   ;; Used to wake up the receiver thread when something
                   ;; should be read. It should be locked in the
@@ -798,6 +754,7 @@
                    (thread-start!
                     (make-thread
                      (lambda ()
+                       (dbg "Reader thread of (http-connection-open) started.")
                        (let loop ()
                          (let ((req
                                 (let loop ()
@@ -812,15 +769,19 @@
                                          http-max-connection-idle-time)
                                         (loop))))))
                            (if req
-                               (with-exception-catcher
+                               (with-exception-catcher ; for more debug:with-exception/continuation-listener
                                 (lambda (e)
                                   ;; Silently ignore the error. After
                                   ;; this, we send a message to the
                                   ;; sender thread to kill itself.
+                                  (dbg "Exception in reader thread" e)
+                                  ;(##repl)
                                   #f)
                                 (lambda ()
+                                  (dbg "Reader thread picked up request to process: " req)
                                   (let ((close?
                                          (read-response port req)))
+                                    (dbg "Reader thread: close?=" close?)
                                     (with-rq!
                                      (lambda ()
                                        (http-connections-pop-request
@@ -829,14 +790,18 @@
                                         uid
                                         sender)
                                        (queue-pop! rq)))
+                                    (dbg "Reader thread: now to http-request-done-callback")
                                     ((http-request-done-callback req))
                                     (if (not close?) (loop))))))))
-                       (thread-send sender #f))))))
+                       (thread-send sender #f)
+                       (dbg "Reader thread of (http-connection-open) closing.")
+                       )))))
              ;; The sender loop
              (with-exception-catcher
               (lambda (e)
                 ;; This will be reached both when something goes wrong
                 ;; and when the timeout is reached.
+                (dbg "Exception in sender loop")
                 #f)
               (lambda ()
                 (let loop ()
@@ -880,10 +845,16 @@
              ;; Wait for the receiver thread to exit before we close
              ;; the connection.
              (thread-join! receiver)
-             (close-port port)))))))
+             (close-port port))
+           (dbg "Thread of (http-connection-open) closing.")
+           )
+         `(http-client worker-thread persistent-connection id ,uid)
+         ))))
       close-on-exit: #f))
 
 (define (http-connection-push-request conn req)
+  (dbg "(http-connection-push-request) communicates request - req="
+       req ", conn=" conn)
   ;; I want guaranteed message delivery and last-in-first-out order of
   ;; the messages, so I don't use termite.
   (thread-send conn req))
@@ -1022,6 +993,7 @@
                          query)
   (let* ((up (open-output-u8vector (u8vector)))
          (mtx (make-mutex))
+         ; (mailbox (make-empty-mailbox))
          (response-code #f)
          (response-headers #f)
          (headers (if (and http-username http-password)
@@ -1032,7 +1004,9 @@
          (response-data (call-with-output-u8vector
                          '()
                          (lambda (port)
+                           ; (print "Locking\n")
                            (mutex-lock! mtx)
+                           ; (print "Into http-follow-request\n")
                            (http-follow-request
                             (make-http-request
                              method
@@ -1040,12 +1014,20 @@
                              headers
                              query
                              (lambda (code headers has-content?)
+                               (dbg "http-request port-callback invoked")
                                (set! response-code code)
                                (set! response-headers headers)
                                port)
                              (lambda ()
-                               (mutex-unlock! mtx))))
-                           (mutex-lock! mtx)))))
+                               (dbg "http-request done-callback invoked")
+                               ; (print "Unlocking\n")
+                               (mutex-unlock! mtx)
+                               ; (mailbox-put! mailbox #t)
+                               )))
+                           (dbg "(http-access-url) http-follow-request returned")
+                           (mutex-lock! mtx)
+                           ; (mailbox-get! mailbox)
+                           ))))
     
     (if-applicable-raise-remote-exception response-code
                                           response-headers
@@ -1057,11 +1039,61 @@
           response-headers
           response-data)))
 
-(define (http-get-url . p)
-  (apply http-access-url (cons 'get p)))
+(define (http-get-url  . p) (apply http-access-url (cons 'get  p)))
+(define (http-post-url . p) (apply http-access-url (cons 'post p)))
 
-(define (http-post-url . p)
-  (apply http-access-url (cons 'post p)))
+(define http-access-url/unfallible:on-first-failure-callback (make-parameter #f))
+
+(define (http-access-url/unfallible method uri . a)
+  (let retry-loop ((retries-yet 1))
+    (let ((r (with-exception-handler
+              (lambda (e)
+                (values #t
+                        `(exception ,e)
+                        ; (if (http-client-error-from-remote? e)
+                        e
+                        ; (raise e))
+                        ))
+              (lambda ()
+                (let* ((r (apply http-access-url `(,method ,uri . ,a)))
+                       (response-code (car r))
+                       (failure? (<= 500 response-code 599))
+                       (failure-reason (and failure `(failure-response-code-from-remote-host ,response-code))))
+                  (values failure? failure-reason r))))))
+      (receive
+          (failure? failure-reason r) r
+        (if failure?
+            (let ((s (cond ((> retries-yet 50) (* 12 3600))
+                           ((> retries-yet 30) 3600)
+                           ((> retries-yet 25) 600)
+                           ((> retries-yet 20) 120)
+                           ((> retries-yet 7 ) 30)
+                           (else               5))))
+              (let reprint-error ((s s) (first-reprint-loop #t))
+                (let ((reprint-every-secs (if (> retries-yet 30) 60 15)))
+                  (print "http-access-url/unfallible: Tried to access " uri " " retries-yet " times but failed"
+                         " because of " failure-reason ". "
+                         "Retrying in " s " seconds... (Error on last try: " r ")\n")
+                  (force-output)
+
+                  (if (and (eq? retries-yet 1) first-reprint-loop)
+                      (let ((on-first-failure (http-access-url/unfallible:on-first-failure-callback)))
+                        (if on-first-failure
+                            (on-first-failure))))
+
+                  (thread-sleep! (min s reprint-every-secs))
+                  (if (> s reprint-every-secs) (reprint-error (- s reprint-every-secs) #f))))
+              (print "\nhttp-access-url/unfallible: Now retrying with accessing " uri " ...\n") (force-output)
+              (retry-loop (+ retries-yet 1))))
+        (begin
+          (if (> retries-yet 1)
+              (begin
+                (print "\nhttp-access-url/unfallible: Accessing " uri " succeeded on the " retry ":th try! Returning.\n")
+                (force-output)))
+          r)))))
+
+(define (http-get-url/unfallible  . p) (apply http-access-url/unfallible (cons 'get  p)))
+(define (http-post-url/unfallible . p) (apply http-access-url/unfallible (cons 'post p)))
 
 (define (http-client-404-exception? e)
   (or (http-client-error-from-remote? e)
@@ -1088,6 +1120,7 @@
   '(
     (use /lib/http-common
          /lib/http-client)
+    (http-get-url "http://en.wikipedia.org/")
     (http-get-url "http://ws.audioscrobbler.com/2.0/?method=user%2Egetplaylists&api%5Fkey=35c639c94148a2a26ef8faa9f94d5b7c&user=bwsb")
 
     ; Example 2, manual HTTP access

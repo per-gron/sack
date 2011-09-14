@@ -2,10 +2,10 @@
 ;;;
 ;;; Copyright (c) 2008-2009 Per Eckerdal
 
-(import (srfi time
-              strings)
-        (only: (srfi lists) find)
-        (only: (std string/util) ;; FIXME
+(import (std srfi/19
+             srfi/13)
+        (only: (std srfi/1) find)
+        (only: (std string/util)
                string-strip
                string-split)
         http-common

@@ -58,7 +58,8 @@
 
                 (mutex-unlock! mutex)
                 
-                (loop)))))))))
+                (loop)))))))
+      '(pool-session-store cleanup-thread)))
 
     ;; Create and return the session pool object
     (let ((data (will-testator data-will)))

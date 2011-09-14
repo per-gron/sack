@@ -7,7 +7,7 @@
 ;;; Rights Reserved.
 
 (import x-www-form-urlencoded
-        (only: (srfi strings)
+        (only: (std srfi/13)
                string-index-right))
 
 ;; TODO parse-uri can return '() as query-string when it's set not to parse it.
@@ -32,6 +32,7 @@
         uri-authority
         uri-authority-set
         uri-query-string
+        uri-path&query->string
         parse-uri
         parse-uri-query
         string->uri
@@ -183,7 +184,6 @@
             (uri-query uri)
             (uri-fragment uri)))
 
-
 (define (uri-query-string uri)
   (let ((q (uri-query uri)))
     (if (string? q)
@@ -193,7 +193,7 @@
           (lambda ()
             (cond
              ((string? q)
-              (display "?")
+              ; (display "?")
               (display q))
              
              ((pair? q)
@@ -204,12 +204,18 @@
                        (display "&"))
                    (set! first #f)
                    (if (cdr pair)
-                       (display (list
-                                 (urlencode (car pair))
-                                 "="
-                                 (urlencode (cdr pair))))
+                       (print (list
+                               (urlencode (car pair))
+                               "="
+                               (urlencode (cdr pair))))
                        (display (urlencode (car pair)))))
                  q)))))))))
+
+(define (uri-path&query->string uri)
+  (let ((path (uri-path uri))
+        (query-string (uri-query-string uri)))
+    (string-append (if (zero? (string-length path)) "/" path)
+                   (if (zero? (string-length query-string)) "" "?") query-string)))
 
 (define (hex-digit str i)
   (let ((n (char->integer (string-ref str i))))
