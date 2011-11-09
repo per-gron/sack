@@ -2,9 +2,9 @@
 ;;;
 ;;; Copyright (c) 2008-2009 Per Eckerdal
 
-(import (std srfi/19
-             srfi/13)
-        (only: (std srfi/1) find)
+(import (srfi time
+              strings)
+        (only: (srfi lists) find)
         (only: (std string/util)
                string-strip
                string-split)
@@ -103,7 +103,7 @@
                          `("\"" ,(number->string port) "\""))
                         ((pair? port)
                          `("\""
-                           ,@(join "," (map number->string port))
+                           ,@(string-join "," (map number->string port))
                            "\""))
                         (else `(,port)))))
              ,(if secure "; secure" "")

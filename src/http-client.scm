@@ -36,12 +36,12 @@
              ds/wt-tree
              string/base64
              string/util
-             srfi/1
-             srfi/13
-             srfi/19
              misc/u8v
              ; misc/exception
              )
+        (srfi lists
+              strings
+              time)
         ; (only: (std string/util) apply-dumps)
         http-common
         uri
@@ -308,7 +308,7 @@
       (if content
           (begin
             (if (u8vector? content)
-                (write-u8vector content port)
+                (write-subu8vector content 0 (u8vector-length content) port)
                 (pipe/buffer content port))
             (display-crlf port))))
 
@@ -1058,7 +1058,9 @@
                 (let* ((r (apply http-access-url `(,method ,uri . ,a)))
                        (response-code (car r))
                        (failure? (<= 500 response-code 599))
-                       (failure-reason (and failure `(failure-response-code-from-remote-host ,response-code))))
+                       (failure-reason (and failure?
+                                            `(failure-response-code-from-remote-host
+                                              ,response-code))))
                   (values failure? failure-reason r))))))
       (receive
           (failure? failure-reason r) r
@@ -1088,7 +1090,7 @@
         (begin
           (if (> retries-yet 1)
               (begin
-                (print "\nhttp-access-url/unfallible: Accessing " uri " succeeded on the " retry ":th try! Returning.\n")
+                (print "\nhttp-access-url/unfallible: Accessing " uri " succeeded on the " retries-yet ":th try! Returning.\n")
                 (force-output)))
           r)))))
 

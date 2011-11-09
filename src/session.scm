@@ -56,9 +56,9 @@
     (let ((store (session-store)))
       (if (eq? set-to session-variable-nochange)
           (and store
-               ((session-store-fetch conf) id))
+               ((session-store-fetch 'TODO-conf) id))
           (if (session-store-store! id set-to)
-              (session-open conf)
+              ('TODO-session-open 'TODO-conf)
               (error "Not in a session dynamic environment"))))))
 
 (define (session-destroy!)

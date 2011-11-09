@@ -31,7 +31,7 @@
            #f))))
 
 ; write ISO8859-characters string str to ISO8859-urlencoded format to current-output-port
-(define (write-urlencoded-ISO8859 str)
+(define (write-urlencoded str)
   (define (write-nibble n)
     (write-char (##string-ref "0123456789ABCDEF" n)))
   
@@ -54,7 +54,7 @@
           (loop (+ i 1))))))
 
 ; urlencode ISO8859-characters string str to ISO8859-urlencoded format
-(define (urlencode-ISO8859 str)
+(define (urlencode str)
   (with-output-to-string
     ""
     (lambda () (write-urlencoded str))))
@@ -82,16 +82,8 @@
                  (write-nibble (bitwise-and b 15))))
           (loop (+ i 1))))))
 
-(define (urlencode->u8vector str)
-  (with-output-to-u8vector
-    '()
-    (lambda () (write-urlencoded-u8vector (string->u8vector str)))))
-
-(define (urlencode str)
-  (u8vector->string (urlencode->u8vector str)))
-
 ; urldecode an iso8859-encoded string to string
-(define (urldecode-ISO8859 str)
+(define (urldecode str)
   (let* ((len (string-length str))
          (ret (make-string len))
          (strpos 0))
@@ -131,10 +123,6 @@
                   (set! u8vpos (+ u8vpos 1))
                   (loop (+ i 1)))))))
     (subu8vector ret 0 u8vpos)))
-
-; urldecode an utf8-encoded string, to string
-(define (urldecode str)
-  (u8vector->string (urldecode->u8vector str)))
 
 (define (write-x-www-form-urlencoded fields)
   (define (write-field field)

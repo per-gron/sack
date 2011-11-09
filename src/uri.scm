@@ -7,7 +7,7 @@
 ;;; Rights Reserved.
 
 (import x-www-form-urlencoded
-        (only: (std srfi/13)
+        (only: (srfi strings)
                string-index-right))
 
 ;; TODO parse-uri can return '() as query-string when it's set not to parse it.
