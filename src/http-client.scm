@@ -30,19 +30,14 @@
 ;;             HTTP requests. 
 ;; 
 
-;; TODO This library contains an undefined reference to write-u8vector
-
-(import (std ds/queue
-             ds/wt-tree
-             string/base64
-             string/util
-             misc/u8v
-             ; misc/exception
-             )
+(import #(std ds/queue
+              ds/wt-tree
+              string/base64
+              string/util
+              misc/u8v)
         (srfi lists
               strings
               time)
-        ; (only: (std string/util) apply-dumps)
         http-common
         uri
         x-www-form-urlencoded)

@@ -6,5 +6,6 @@
  (description "HTTP middleware for Scheme/Gambit/Black Hole, inspired by Ruby's Rack")
  (keywords http web i/o)
  (license mit)
+ (dependencies uuid std)
 
  (source-directory "src"))

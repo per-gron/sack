@@ -10,7 +10,7 @@
 ; (urlencode str)
 ; [fill out]
 
-(import (std misc/u8v))
+(import #(std misc/u8v))
 
 (define (hex str n i)
   (if (< (+ i 1) n)

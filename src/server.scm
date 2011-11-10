@@ -27,7 +27,7 @@
                current-date)
         (only: (srfi lists)
                filter)
-        (only: (std string/util) ;; FIXME
+        (only: #(std string/util) ;; FIXME
                string-split)
         (only: uri
                uri-port-set

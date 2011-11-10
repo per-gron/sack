@@ -3,7 +3,7 @@
 ;;; Copyright (c) 2008-2009 Per Eckerdal, 2005-2007 Marc Feeley, All
 ;;; Rights Reserved.
 
-(import (std string/util)
+(import #(std string/util)
         (srfi lists
               strings)
         (only: (srfi time) date->string)
