@@ -92,6 +92,7 @@
                      #!key
                      (port-number 80)
                      (threaded? #t)
+                     (background? #t)
                      (keep-alive-timeout 15)
                      (keep-alive 5)
                      thread-name
@@ -116,40 +117,48 @@
 
         ;; A mutex that is unlocked when the server should quit.
         (quit-mutex (make-mutex)))
+    
+    (define (quit-mutex-locked?)
+      (let ((state (mutex-state quit-mutex)))
+        (or (thread? state)
+            (eq? 'not-owned state))))
+
+    (define (thread-proc)
+      (let loop ()
+        (let ((connection (read server-port)))
+          (if threaded?
+              ;; Multithreaded mode.
+              (let ((dummy-port (open-dummy)))
+                (parameterize
+                    ((current-input-port dummy-port)
+                     (current-output-port dummy-port))
+                  (thread-start!
+                   (make-thread
+                    (lambda ()
+                      (serve connection))))))
+              
+              ;; Single-threaded mode.
+              (serve connection)))
+        
+        ;; If the mutex is not locked, it means that we should quit.
+        (if (quit-mutex-locked?)
+            (loop))))
+      
     (mutex-lock! quit-mutex)
-
-    (let ((thread-proc
-           (lambda ()
-             (let loop ()
-               (let ((connection (read server-port)))
-                 (if threaded?
-                     ;; Multithreaded mode.
-                     (let ((dummy-port (open-dummy)))
-                       (parameterize
-                           ((current-input-port dummy-port)
-                            (current-output-port dummy-port))
-                         (thread-start!
-                          (make-thread
-                           (lambda ()
-                             (serve connection))))))
-                     
-                     ;; Single-threaded mode.
-                     (serve connection)))
-               
-               ;; If the mutex is not locked, it means that we should quit.
-               (if (not (mutex-lock! quit-mutex 0))
-                   (loop))))))
-      (thread-start!
-       (if thread-name
-           (make-thread thread-proc thread-name)
-           (make-thread thread-proc))))
-
-    (lambda ()
-      (if (mutex-lock! quit-mutex 0)
-          (error "Server has already quit (or is quitting)")
-          (begin
-            (mutex-unlock! quit-mutex)
-            (close-port server-port))))))
+    
+    (if background?
+        (let ((thread
+               (thread-start!
+                (if thread-name
+                    (make-thread thread-proc thread-name)
+                    (make-thread thread-proc)))))
+          (lambda ()
+            (if (quit-mutex-locked?)
+                (begin
+                  (mutex-unlock! quit-mutex)
+                  (close-port server-port))
+                (error "Server has already quit (or is quitting)"))))
+        (thread-proc))))
 
 ;==============================================================================
 
