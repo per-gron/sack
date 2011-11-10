@@ -1,5 +1,5 @@
 (package
- (version v0.0.1)
+ (version v0.0.2)
  (maintainer "Per Eckerdal <per dot eckerdal at gmail dot com>")
  (author "Per Eckerdal <per dot eckerdal at gmail dot com>")
  (homepage "http://github.com/pereckerdal/sack")
