@@ -5,7 +5,7 @@
 (import (srfi time
               strings)
         (only: (srfi lists) find)
-        (only: #(std string/util)
+        (only: (std string/util)
                string-strip
                string-split)
         http-common

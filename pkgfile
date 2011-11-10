@@ -1,11 +1,11 @@
 (package
- (version v0.0.4)
+ (version v0.0.5)
  (maintainer "Per Eckerdal <per dot eckerdal at gmail dot com>")
  (author "Per Eckerdal <per dot eckerdal at gmail dot com>")
  (homepage "http://github.com/pereckerdal/sack")
  (description "HTTP middleware for Scheme/Gambit/Black Hole, inspired by Ruby's Rack")
  (keywords http web i/o)
  (license mit)
- (dependencies uuid std)
+ (dependencies uuid std srfi)
 
  (source-directory "src"))

@@ -30,11 +30,11 @@
 ;;             HTTP requests. 
 ;; 
 
-(import #(std ds/queue
-              ds/wt-tree
-              string/base64
-              string/util
-              misc/u8v)
+(import (std ds/queue
+             ds/wt-tree
+             string/base64
+             string/util
+             misc/u8v)
         (srfi lists
               strings
               time)

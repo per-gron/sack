@@ -2,7 +2,7 @@
         show-exceptions
         pool-session-store
         cookie
-        #(std misc/exception))
+        (std misc/exception))
 
 (sack-start!
  (lambda (env)
@@ -55,13 +55,13 @@
         show-exceptions
         pool-session-store
         cookie
-        #(std misc/exception))
+        (std misc/exception))
 
 (import "http://github.com/pereckerdal/sack/raw/master/src/server.scm"
         "http://github.com/pereckerdal/sack/raw/master/src/show-exceptions.scm"
         "http://github.com/pereckerdal/sack/raw/master/src/pool-session-store.scm"
         "http://github.com/pereckerdal/sack/raw/master/src/cookie.scm"
-        #(std misc/exception))
+        (std misc/exception))
 
 (define (sack-app env)
   (pp (list sess: ((env 'sack:session:get-all))))
