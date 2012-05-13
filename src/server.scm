@@ -327,7 +327,7 @@
                       (let* ((false-response? (if data-thunk
                                                  (not (if copying?
                                                           (data-thunk (subu8vector buf 0 bytes-read))
-                                                          (data-thunk buf bytes-read)))
+                                                          (data-thunk buf)))
                                                  #f))
                              (continue (lambda (data-thunk copying?)
                                          (loop (- bytes-left bytes-read) data-thunk copying?))))
@@ -530,7 +530,7 @@
 
              ; In case there's any more HTTP request body that's un-read
              ; (- in this scope: not skipped over yet) up to now, do that now.
-             (sack:body (lambda (u8v len) (void)) copying?: #f)
+             (sack:body (lambda a (void)) copying?: #f)
              )
 
             (else

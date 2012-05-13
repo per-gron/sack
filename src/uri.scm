@@ -41,6 +41,7 @@
         uri-fragment-set
         uri-authority
         uri-authority-set
+        uri-query-string:use-char-encoding-in-urlencoding
         uri-query-string
         uri-path&query->string
         parse-uri
@@ -194,8 +195,15 @@
             (uri-query uri)
             (uri-fragment uri)))
 
+; Some nonstandard web servers require urlencoding to be done in another char encoding than
+; UTF-8, which is the commonly accepted standard all across the Internet.
+(define uri-query-string:use-char-encoding-in-urlencoding (make-parameter 'UTF-8))
 (define (uri-query-string uri)
-  (let ((q (uri-query uri)))
+  (let ((urlencode (case (uri-query-string:use-char-encoding-in-urlencoding)
+                     ((UTF-8     ) urlencode)
+                     ((ISO-8859-1) urlencode-ISO8859)
+                     (else (error))))
+        (q (uri-query uri)))
     (if (string? q)
         q
         (with-output-to-string

@@ -1,5 +1,5 @@
 Find below the calling and use convention for the Sack HTTP middleware.
-For a usage example, see sack-app.scm .
+For a usage example, see sack-app.scm and testapp.scm .
 For how to use http-client, see its sourcecode in src/http-client.scm .
 
 (define-type cookie

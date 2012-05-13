@@ -31,7 +31,7 @@
            #f))))
 
 ; write ISO8859-characters string str to ISO8859-urlencoded format to current-output-port
-(define (write-urlencoded str)
+(define (write-urlencoded-ISO8859 str)
   (define (write-nibble n)
     (write-char (##string-ref "0123456789ABCDEF" n)))
   
@@ -53,11 +53,13 @@
                      (write-nibble (bitwise-and n 15)))))
           (loop (+ i 1))))))
 
-; urlencode ISO8859-characters string str to ISO8859-urlencoded format
-(define (urlencode str)
+; urlencode ISO8859-characters string str to ISO8859-urlencoded format.
+; This is not the common standard on the Internet today, but is used by some parties for instance
+; with legacy non-Unicode systems.
+(define (urlencode-ISO8859 str)
   (with-output-to-string
     ""
-    (lambda () (write-urlencoded str))))
+    (lambda () (write-urlencoded-ISO8859 str))))
 
 (define (write-urlencoded-u8vector u8v)
   (define (write-nibble n)
@@ -71,7 +73,9 @@
           (cond ((or (and (fx>= b 97) (fx<= b 122)) ; (char->integer #\a), (char->integer #\z)
                      (and (fx>= b 65) (fx<= b 90 )) ; (char->integer #\A), (char->integer #\Z)
                      (and (fx>= b 48) (fx<= b 57 )) ; (char->integer #\0), (char->integer #\9)
-                     (eq? b 95)) ; (char->integer #\_)
+                     (eq? b 95) ; (char->integer #\_)
+                     (eq? b 46) ; (char->integer #\.) - Microsoft (api.bing.com) doesn't handle .:s urlencoded in HTTP query key values
+                     )
                  (write-u8 b))
                 ((eq? b 32) ; (char->integer #\space)
                  (write-u8 (char->integer #\+)))
@@ -82,8 +86,17 @@
                  (write-nibble (bitwise-and b 15))))
           (loop (+ i 1))))))
 
+(define (urlencode->u8vector str)
+  (with-output-to-u8vector
+    '()
+    (lambda () (write-urlencoded-u8vector (string->u8vector str)))))
+
+; Performs an UTF8-urlencoding, which is the common standard on the Internet today.
+(define (urlencode str)
+  (u8vector->string (urlencode->u8vector str)))
+
 ; urldecode an iso8859-encoded string to string
-(define (urldecode str)
+(define (urldecode-ISO8859 str)
   (let* ((len (string-length str))
          (ret (make-string len))
          (strpos 0))
@@ -123,6 +136,10 @@
                   (set! u8vpos (+ u8vpos 1))
                   (loop (+ i 1)))))))
     (subu8vector ret 0 u8vpos)))
+
+; urldecode an utf8-encoded string, to string
+(define (urldecode str)
+  (u8vector->string (urldecode->u8vector str)))
 
 (define (write-x-www-form-urlencoded fields)
   (define (write-field field)

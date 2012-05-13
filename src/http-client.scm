@@ -303,7 +303,7 @@
       (if content
           (begin
             (if (u8vector? content)
-                (write-subu8vector content 0 (u8vector-length content) port)
+                (write-subu8vector content 0 (u8vector-length content) port) ; TODO: When having updated the main bh-libs repo with the misc/u8v version that contains write-u8vector, replace this call here with a write-u8vector call
                 (pipe/buffer content port))
             (display-crlf port))))
 
