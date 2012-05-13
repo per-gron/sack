@@ -3,11 +3,21 @@
 ;;; Written by Marc Feeley for http-server, made to a
 ;;; separate module and refactored by Per Eckerdal.
 ;;;
-;;; Copyright (c) 2008-2009 Per Eckerdal, 2005-2007 Marc Feeley, All
-;;; Rights Reserved.
+;;; Copyright (c) 2008-2009 Per Eckerdal, 2005-2007 Marc Feeley, 2012 Mikael More
+;;; All Rights Reserved.
+
+;; History
+;; 2012-01-18: Made parse-uri-query more liberal through making it use the newly introduced
+;;             excluded-char?/liberal-for-http-get-values routine.
+;;                  Until now parsing an URI such as "/doc?abc=de[fg" would produce a query
+;;             '(("abc" . "def")) i.e. cut off at the [ . The same would apply for all the other
+;;             control chars matched by excluded-char? , including [ ] < > ^ .
+;;                  excluded-char?/liberal-for-http-get-values matches only chars higher than
+;;             #\x7f i.e. clear indication of broken char encoding. The current handling of this
+;;             is just to stop parsing though, better would be to give #f uri.
 
 (import x-www-form-urlencoded
-        (only: (srfi strings)
+        (only: (std srfi/13)
                string-index-right))
 
 ;; TODO parse-uri can return '() as query-string when it's set not to parse it.
@@ -264,6 +274,9 @@
       (char=? c #\])
       (char=? c #\`)))
 
+(define (excluded-char?/liberal-for-http-get-values c)
+  (or (not (char<? c #\x7f))))
+
 (define (extract-escaped str start n)
   (let ((result (make-string n)))
     (let loop ((i start) (j 0))
@@ -472,7 +485,7 @@
     
     ;; inside the "query" part
     (define (state3 i j n)
-      ;;(dbg "State3 executed with i \"" i "\" j \"" j "\" n \"" n "\".")
+      ;; (dbg "State3 executed with i \"" i "\" j \"" j "\" n \"" n "\".")
       (if (< j end)
           (let ((c (string-ref str j)))
             ;; (dbg "state3 processes char " c)
@@ -496,7 +509,7 @@
           (let ((query (extract-query i j n)))
             (and query
                  (begin
-                   ;;(dbg "state3 concluded query to " query)
+                   ;; (dbg "state3 concluded query to " query)
                    (uri-query-set! uri query)
                    j)))))
 
@@ -520,7 +533,7 @@
           (let ((fragment (extract-string i j n)))
             (and fragment
                  (begin
-                   ;;(dbg "state4 concluded fragment to " fragment)
+                   ;; (dbg "state4 concluded fragment to " fragment)
                    (uri-fragment-set! uri fragment)
                    j)))))
   
@@ -531,16 +544,17 @@
 
 (define (parse-uri-query str start end decode? cont #!optional (strict #t))
   (let ((rev-bindings '()))
-    
+
     (define (extract-string i j n)
       (let ((returnvalue
              (if decode?
                  (extract-escaped str i n)
                  (substring str i j))))
-        ;;(dbg "extract-string returns \"" returnvalue "\".")
+        ;; (dbg "extract-string returns \"" returnvalue "\".")
         returnvalue))
-    
+
     (define (state0 i j n)
+      ;; (dbg "state0 run with i " i " j " j " n " n)
       (if (< j end)
           (let ((c (string-ref str j)))
             (cond ((char=? c #\%)
@@ -573,8 +587,9 @@
             (set! rev-bindings
                   (cons (cons (extract-string i j n) #f) rev-bindings))
             j)))
-    
+
     (define (state1 i j n name)
+      ;; (dbg "state1 run with i " i " j " j " n " n " name " name)
       (if (< j end)
           (let ((c (string-ref str j)))
             (cond ((char=? c #\%)
@@ -594,7 +609,7 @@
                                          j
                                          0))))))
                   ((and strict (char=? c #\=) #f))
-                  ((excluded-char? c)
+                  ((excluded-char?/liberal-for-http-get-values c)
                    (let ((val (extract-string i j n)))
                      (and val
                           (begin
@@ -612,7 +627,8 @@
                    (set! rev-bindings
                          (cons (cons name val) rev-bindings))
                    j)))))
-    
+
+    ;; (dbg "parse-query run with str " str " start " start " end " end " decode? " decode? " cont " cont " strict " strict)
     (let* ((i (state0 start start 0))
            (returnvalue
             (cont (and i (reverse rev-bindings))
