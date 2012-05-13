@@ -1,7 +1,7 @@
 ;; ===================================================================
 ;;
 ;;   Another http (1.1) client library
-;;   Per Eckerdal and Mikael More
+;;   Copyright (C) 2010-2012 Per Eckerdal and Mikael More
 ;;   MIT non-academic license
 ;;
 ;; Things it supports:

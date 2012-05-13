@@ -1,3 +1,8 @@
+
+ ## Sack web server and HTTP client.
+ ## HTTP middleware for Scheme/Gambit/Black Hole, inspired by Ruby's Rack"
+ ## MIT license. For copyrights and development history see respective source files.
+
 Find below the calling and use convention for the Sack HTTP middleware.
 For a usage example, see sack-app.scm and testapp.scm .
 For how to use http-client, see its sourcecode in src/http-client.scm .

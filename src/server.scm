@@ -1,7 +1,7 @@
 ;;; A sack application HTTP server.
 ;;;
-;;; Copyright (c) 2008-2009 Per Eckerdal, 2010-2012 Mikael More, 2005-2007 Marc Feeley, All
-;;; Rights Reserved.
+;;; Copyright (c) 2008-2009 Per Eckerdal, 2010-2012 Mikael More, 2005-2007 Marc Feeley,
+;;; All Rights Reserved.
 ;;; MIT license.
 
 ;; History
