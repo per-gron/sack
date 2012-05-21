@@ -1,7 +1,7 @@
 ;; ===================================================================
 ;;
 ;;   Another http (1.1) client library
-;;   Per Eckerdal and Mikael More
+;;   Copyright (C) 2010-2012 Per Eckerdal and Mikael More
 ;;   MIT non-academic license
 ;;
 ;; Things it supports:
@@ -34,7 +34,9 @@
              ds/wt-tree
              string/base64
              string/util
-             misc/u8v)
+             misc/u8v
+             misc/exception
+	     )
         (srfi lists
               strings
               time)
@@ -198,6 +200,7 @@
          ;; future.
          (server-address host)
          (port
+          ; Either this clause returns a port, or it throws an exception.
           ((cond ((equal? scheme "http")
                   open-tcp-client)
                  ;; I have removed openssl support because of license
@@ -303,7 +306,7 @@
       (if content
           (begin
             (if (u8vector? content)
-                (write-subu8vector content 0 (u8vector-length content) port)
+                (write-subu8vector content 0 (u8vector-length content) port) ; TODO: When having updated the main bh-libs repo with the misc/u8v version that contains write-u8vector, replace this call here with a write-u8vector call
                 (pipe/buffer content port))
             (display-crlf port))))
 
@@ -357,7 +360,7 @@
             (pipe/buffer port output-port cl buf))))
 
      (else
-      (dump-u8vector-port-to-other-u8vector-port
+      (dump-u8vector-port-to-other-u8vector-port ; TODO: When updating this procedure in misc/u8v to the name of dump-u8vector-port, update this reference also.
        port
        output-port)))))
 
@@ -764,7 +767,7 @@
                                          http-max-connection-idle-time)
                                         (loop))))))
                            (if req
-                               (with-exception-catcher ; for more debug:with-exception/continuation-listener
+                               (with-exception/continuation-catcher ; we want more debug. with-exception-catcher ; for more debug:with-exception/continuation-listener
                                 (lambda (e)
                                   ;; Silently ignore the error. After
                                   ;; this, we send a message to the
@@ -792,11 +795,11 @@
                        (dbg "Reader thread of (http-connection-open) closing.")
                        )))))
              ;; The sender loop
-             (with-exception-catcher
+             (with-exception/continuation-catcher ; with-exception-catcher
               (lambda (e)
                 ;; This will be reached both when something goes wrong
                 ;; and when the timeout is reached.
-                (dbg "Exception in sender loop")
+                (dbg "Exception in sender loop: " e)
                 #f)
               (lambda ()
                 (let loop ()
@@ -1041,22 +1044,26 @@
 
 (define (http-access-url/unfallible method uri . a)
   (let retry-loop ((retries-yet 1))
-    (let ((r (with-exception-handler
-              (lambda (e)
-                (values #t
-                        `(exception ,e)
-                        ; (if (http-client-error-from-remote? e)
-                        e
-                        ; (raise e))
-                        ))
-              (lambda ()
-                (let* ((r (apply http-access-url `(,method ,uri . ,a)))
-                       (response-code (car r))
-                       (failure? (<= 500 response-code 599))
-                       (failure-reason (and failure?
-                                            `(failure-response-code-from-remote-host
-                                              ,response-code))))
-                  (values failure? failure-reason r))))))
+    (let ((r (let ((perform
+                    (lambda ()
+                      (dbg "(http-access-url/unfallible) goes into http-access-url")
+                      (let* ((r (apply http-access-url `(,method ,uri . ,a)))
+                             (_tmp (dbg "(http-access-url/unfallible) is out of http-access-url via ordinary path"))
+                             (response-code (car r))
+                             (failure? (<= 500 response-code 599))
+                             (failure-reason (and failure? `(failure-response-code-from-remote-host ,response-code))))
+                        (values failure? failure-reason r)))))
+               (with-exception/continuation-catcher ; with-exception-handler
+                (lambda (e)
+                  (dbg "(http-access-url/unfallible) is out of http-access-url via exception: " e)
+                  (values #t
+                          `(exception ,e)
+                          ; (if (http-client-error-from-remote? e)
+                          e
+                          ; (raise e))
+                          ))
+                perform)
+               )))
       (receive
           (failure? failure-reason r) r
         (if failure?
@@ -1069,7 +1076,7 @@
               (let reprint-error ((s s) (first-reprint-loop #t))
                 (let ((reprint-every-secs (if (> retries-yet 30) 60 15)))
                   (print "http-access-url/unfallible: Tried to access " uri " " retries-yet " times but failed"
-                         " because of " failure-reason ". "
+                         " because of ") (write failure-reason) (print ". "
                          "Retrying in " s " seconds... (Error on last try: " r ")\n")
                   (force-output)
 
@@ -1081,13 +1088,13 @@
                   (thread-sleep! (min s reprint-every-secs))
                   (if (> s reprint-every-secs) (reprint-error (- s reprint-every-secs) #f))))
               (print "\nhttp-access-url/unfallible: Now retrying with accessing " uri " ...\n") (force-output)
-              (retry-loop (+ retries-yet 1))))
-        (begin
-          (if (> retries-yet 1)
-              (begin
-                (print "\nhttp-access-url/unfallible: Accessing " uri " succeeded on the " retries-yet ":th try! Returning.\n")
-                (force-output)))
-          r)))))
+              (retry-loop (+ retries-yet 1)))
+            (begin
+              (if (> retries-yet 1)
+                  (begin
+                    (print "\nhttp-access-url/unfallible: Accessing " uri " succeeded on the " retries-yet ":th try! Returning.\n")
+                    (force-output)))
+              r))))))
 
 (define (http-get-url/unfallible  . p) (apply http-access-url/unfallible (cons 'get  p)))
 (define (http-post-url/unfallible . p) (apply http-access-url/unfallible (cons 'post p)))
